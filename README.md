@@ -26,5 +26,5 @@ A comprehensive password strength analysis tool with multiple security checks.
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/088lz/password-tester.git
+git clone https://github.com/088lz/passwordsecuritychecker.git
 cd password-tester
