@@ -16,8 +16,6 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 import json
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
 from flask import Flask, request, jsonify, render_template
