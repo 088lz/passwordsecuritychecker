@@ -1,207 +1,358 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[codz]
-*$py.class
+#!/usr/bin/env python3
+"""
+Advanced Password Strength Tester
+A comprehensive tool for analyzing password security
+"""
 
-# C extensions
-*.so
+import re
+import math
+import requests
+import hashlib
+from datetime import datetime
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+class PasswordTester:
+    def __init__(self):
+        self.common_passwords = self.load_common_passwords()
+        
+    def load_common_passwords(self):
+        """Load common passwords from internal database"""
+        common = [
+            "123456", "password", "12345678", "qwerty", "123456789",
+            "12345", "1234", "111111", "1234567", "dragon",
+            "123123", "baseball", "abc123", "football", "monkey",
+            "letmein", "shadow", "master", "666666", "qwertyuiop",
+            "123321", "mustang", "1234567890", "michael", "superman"
+        ]
+        return set(common)
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+    def calculate_entropy(self, password):
+        """Calculate password entropy in bits"""
+        char_sets = {
+            'lower': 26,    # a-z
+            'upper': 26,    # A-Z  
+            'digits': 10,   # 0-9
+            'special': 33   # !@#$%^&*() etc.
+        }
+        
+        pool_size = 0
+        if re.search(r'[a-z]', password):
+            pool_size += char_sets['lower']
+        if re.search(r'[A-Z]', password):
+            pool_size += char_sets['upper']
+        if re.search(r'[0-9]', password):
+            pool_size += char_sets['digits']
+        if re.search(r'[^a-zA-Z0-9]', password):
+            pool_size += char_sets['special']
+            
+        if pool_size == 0:
+            return 0
+            
+        entropy = len(password) * math.log2(pool_size)
+        return round(entropy, 2)
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+    def check_weak_patterns(self, password):
+        """Check for common weak patterns"""
+        weaknesses = []
+        
+        # Common password check
+        if password.lower() in self.common_passwords:
+            weaknesses.append("Common password found in database")
+            
+        # Sequential characters
+        sequences = [
+            "123456", "654321", "abcdef", "qwerty", "asdfgh", "zxcvbn"
+        ]
+        for seq in sequences:
+            if seq in password.lower():
+                weaknesses.append("Sequential character pattern detected")
+                break
+                
+        # Repeated characters
+        if re.search(r'(.)\1{3,}', password):
+            weaknesses.append("Too many repeated characters")
+            
+        # Only numbers
+        if password.isdigit():
+            weaknesses.append("Contains only numbers")
+            
+        # Only letters  
+        if password.isalpha():
+            weaknesses.append("Contains only letters")
+            
+        # Short password
+        if len(password) < 8:
+            weaknesses.append("Password is too short (min 8 characters)")
+            
+        # Common substitutions (l33t speak)
+        leet_patterns = [
+            r'[a@4]', r'[e3]', r'[i1!]', r'[o0]', r'[s5$]'
+        ]
+        return weaknesses
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py.cover
-.hypothesis/
-.pytest_cache/
-cover/
+    def check_pwned(self, password):
+        """Check password against Have I Been Pwned database"""
+        try:
+            # Calculate SHA1 hash
+            sha1_hash = hashlib.sha1(password.encode('utf-8')).hexdigest().upper()
+            prefix, suffix = sha1_hash[:5], sha1_hash[5:]
+            
+            # Query API
+            url = f"https://api.pwnedpasswords.com/range/{prefix}"
+            response = requests.get(url, timeout=5)
+            
+            if response.status_code == 200:
+                hashes = response.text.split('\n')
+                for h in hashes:
+                    if suffix in h:
+                        count = int(h.split(':')[1])
+                        return True, count
+            return False, 0
+            
+        except Exception:
+            return None, 0  # API unavailable
 
-# Translations
-*.mo
-*.pot
+    def estimate_crack_time(self, entropy):
+        """Estimate time to crack password"""
+        # Assumptions: 10^9 hashes per second
+        hashes_per_second = 10**9
+        possible_combinations = 2 ** entropy
+        
+        seconds = possible_combinations / hashes_per_second
+        
+        # Convert to human readable
+        if seconds < 60:
+            return "instantly"
+        elif seconds < 3600:
+            return f"{int(seconds/60)} minutes"
+        elif seconds < 86400:
+            return f"{int(seconds/3600)} hours"
+        elif seconds < 31536000:
+            return f"{int(seconds/86400)} days"
+        else:
+            years = seconds / 31536000
+            if years > 1000000:
+                return "millions of years"
+            return f"{int(years)} years"
 
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+    def generate_report(self, password):
+        """Generate comprehensive security report"""
+        print(f"\n🔐 Password Analysis Report: {'*' * len(password)}")
+        print(f"📅 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Basic analysis
+        length = len(password)
+        entropy = self.calculate_entropy(password)
+        weaknesses = self.check_weak_patterns(password)
+        crack_time = self.estimate_crack_time(entropy)
+        
+        print(f"\n📊 Basic Information:")
+        print(f"   Length: {length} characters")
+        print(f"   Entropy: {entropy} bits")
+        print(f"   Estimated crack time: {crack_time}")
+        
+        # Strength indicators
+        print(f"\n✅ Strength Indicators:")
+        if length >= 12:
+            print("   ✓ Long password (12+ characters)")
+        if entropy >= 80:
+            print("   ✓ High entropy")
+        if re.search(r'[a-z]', password) and re.search(r'[A-Z]', password):
+            print("   ✓ Mixed case letters")
+        if re.search(r'[0-9]', password):
+            print("   ✓ Contains numbers")
+        if re.search(r'[^a-zA-Z0-9]', password):
+            print("   ✓ Contains special characters")
+            
+        # Weaknesses
+        if weaknesses:
+            print(f"\n❌ Weaknesses Found:")
+            for weakness in weaknesses:
+                print(f"   {weakness}")
+        else:
+            print(f"\n✅ No major weaknesses found")
+            
+        # Pwned check
+        print(f"\n🌐 Data Breach Check:")
+        pwned, count = self.check_pwned(password)
+        if pwned is None:
+            print("   ⚠️ Could not reach breach database")
+        elif pwned:
+            print(f"   🚨 PASSWORD FOUND IN {count} DATA BREACHES!")
+        else:
+            print("   ✅ Password not found in known breaches")
+            
+        # Security score
+        score = self.calculate_security_score(password, entropy, weaknesses, pwned)
+        print(f"\n🎯 SECURITY SCORE: {score}/100")
+        
+        return score
 
-# Flask stuff:
-instance/
-.webassets-cache
+    def calculate_security_score(self, password, entropy, weaknesses, pwned):
+        """Calculate security score 0-100"""
+        score = 50  # Base score
+        
+        # Length points
+        length = len(password)
+        if length >= 16:
+            score += 20
+        elif length >= 12:
+            score += 15
+        elif length >= 8:
+            score += 10
+        else:
+            score -= 10
+            
+        # Entropy points
+        if entropy >= 100:
+            score += 20
+        elif entropy >= 80:
+            score += 15
+        elif entropy >= 60:
+            score += 10
+        elif entropy < 40:
+            score -= 15
+            
+        # Weakness penalties
+        score -= len(weaknesses) * 10
+        
+        # Pwned penalty
+        if pwned:
+            score -= 30
+            
+        # Ensure bounds
+        return max(0, min(100, score))
 
-# Scrapy stuff:
-.scrapy
+    def generate_strong_password(self, length=16):
+        """Generate a strong password suggestion"""
+        import random
+        import string
+        
+        characters = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = ''.join(random.choice(characters) for _ in range(length))
+        return password
 
-# Sphinx documentation
-docs/_build/
+def print_banner():
+    """Print awesome ASCII banner"""
+    banner = """
+                                              █▓▓▓▓▓██▓▓██                                          
+                                             █▓▓▓▓▓█████▓▓█                                         
+                                             ▓████████████                                          
+                                             ▓▓▓▓▓████████                                          
+                                            ▓▓██▓▓█▓█▓▓██▓                                          
+                                          ▓▓▓████▓▓█▓▓▓▓▓█▓▓                                        
+                                          █████████████▓█████                                       
+                                          ▓▓▓█████████████▓▒                                        
+                                         ███████▓███████████▓                                       
+                                         ████████████████████                                       
+                                          ▓▓██████████████▓▓                                        
+                                          ▓▓█▓█▓███████████▓                                        
+                                          ▓▓█▓▓▓▒▓▓▓▓▓▓▓▓▓▓▓                                        
+                                          ▓▓█▓▓▒▒▒▒▒▓▓▓▓▓▓▓▓                                        
+                                          ▓▓█▓▒▒▒▒▒▓▒▒▒▓▓▓▓▓                                        
+                                   ▒▒▒▒   ▓███▓▒▓▒▒▒▒▒▒▒▓▓▓▓                                        
+                                ▒▒▒░▒▓▒▓█████████████▓▓▒▒▓▓▓                                        
+                              ▓▒▓▒▓▓▒▒▒▓███████████████▓▓▓▓▓                                        
+                            ▒▒▓▓▒▒▒▒▒▒▒█████████████████▓▓▓▓▒                                       
+                            ▒▒▓▒▓▒░░▓▒░▓█████████████████▓▓▓▓▒▒                                     
+                            ▒▒▒▓▒░▒▓▓▓▓██████████████████▓▓▓▓▓▓▓▒                                   
+                            ▓▒▒▒░▓▒▒▒▓█  ▓██▓▓▓▓█████████▓▓▓██▓▓▒▒                                  
+                            ▓▒▓▒▒▒▒▒▓   ▓▓█▓▓▓▓▓▓▓▓▓▓▓████▓█████▒▓▓                                 
+                            ▒▓▒▓▓▓▓█    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓██████████▓▒▓                                
+                             █▓▓▓▓      ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓████████▓▓▓▒▓                               
+                                        ▓▓▓▓▓▓▓██▓▓█████▓▓█████▓▓▒▒▒▒                               
+                                    ▓▒▒▒▓▓▓▓██████████████████▓█▒▒▒▒▓                               
+                                ▓▓█▓▒▓▓▓▓▓███████████████▓█▓▓▒▒▓▒▒▒▓▓                               
+                            ▓▒▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▒▓▓▓▓▓▒▓▓█▓▓█▓▒▒▒▒▓▒▓▓▒                                
+                           ▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒▒▒▓▓▓▓▓▒▒▒▒▒▒▒░▒░▒▒▒▓▓▓▓▓▓▒                               
+                           ▓▓▒▓▒█▒▓▓▓▓▒▒▒▒▒▒▒░▒▒▒▓▒▒░▒▒▒▒▒▒▓█▓▓▓▓▓▓█▓▓▓                             
+                           ▒▒▒▓▒▒▒▒▓▒▓▓▓▓▓▒▓▒▓▒▓▓▒▓█▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓█▓▓                             
+                            ▓▓▒▒▓▓▓▓▓▓▓▓██▓▓▓▓▓▓▓▓▓▓█▓▓▓▓▓█▓▓▒▒▒▓▓▓▓▓█▓▓                            
+                              ▓▓█████████████▓▓▓▓▓▓▓▒▒░░░░░▒▒▒▒▒▒▓▓▓▓█▓▓                            
+                              ▓▓▓██▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░░░░▒▒▒▒▒▒▒▒▓▓▓▓▓▓                            
+                              ▓▓▓▓▓▒▒▒▒▒▒▒▒▒▒▓▓▒▓▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▓▓                            
+                              ▓▓▓▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▓▒▒▒▒▒▒▒▓▓▓▒▒▒▒▒▒▒▓▒                            
+                              ▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▓▓▓▓▓▓▒▒▒██▓██▒▒▒▒▒▒▒▓▒▓▒▒▒                          
+                              ▓▓▓▒▒▒▒▒▒▒▓▓▓███████▒██▓█▒▒▒█▓▓▒▓█▒▒▒▓▒▓▒▒▓▓▒                         
+                              ▒▓▒▒▒▒▓▓▓▓█▒▒▒▒▓▓▒▓██▓▒▒▒▓██▒▒▒▒▒▒▓▓▒▒▒▓▒▒█▓▓▒                        
+                              ▒▓▒▒▓▓▓▓▓██▒▒█▓▓██▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒█▓▓▒▒                       
+                            ▓▓▒▓▒▓▓▓██▓▒▒▓█▒▓▒▒▒▒▒▒▒▒▒▒█▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒█▓▓▒▓▒                      
+                           ▓██▒▓▒▓▓███▒▓▓▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒▒▒▒▓▒▓▒░▒▒▒▒▒▒▒██▓▒▒▒                      
+                          ▓▓██▓▓▓▓▓██▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▓░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓██▓▓▒▒                      
+                         ▒▓▓███▓▓▓▓▓█▒▒▓█▒▒▒█▓▒▒█▒▓█▒▒▒▒▒▒▒▒▒▒▓█▒▒▓█▒▒▒▓██▓▒▒▓                      
+                         ▒▓▓▓███▓▓▓██▒▓▒▒▒▒▒█▒▒▒▒▒██▒█▒█▓▒█▒▓█▒█▒▒▓▓▒▒▓▓█▓▒▒▒▓                      
+                        ▒▒▒▓▓████▓▓▓▓▒▒▒▒▒▒▒█▒▒▒▒▒██▒█▒▒▒▒█▒██▒██▒▒▒▒▓▒██▓▒▒▒▓                      
+                         ▓▒▒▒▓▓████▓▓▓▒▒▓▒▒▒▒▓▓█▒▒██▒▒█▒▒▒▒▒▒▒▒▓▒▒▒▒▒▓▓█▓▓▒▒▓▒                      
+                         ▒▓▒▒▓▓▓███▓▓▓▓▒█▓█░▒▒▒▒▒░▒▒▓▓▒████▓▒▒▒░▒▒▒▓▓▓██▓▒▒▓▒                       
+                          ▒▒▒▓▒▓▓▓██▓█▓▓▒▒▒██▒▒▒▒▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒███▓▒▒▒▒▒                        
+                           ▒▒▒▒▓▒▓▓▓▓█▓▓▓▒▒█▒▒░▓▒▓▒▒▓█▒▓▓▒▓░▒▒▓▓▓▒▓▓█▓▒▒▓▓▓                         
+                            ▒▓▓▒▒▒▓▒▓▓▓██▓█▒▒▒▓█▓▓▓▒▒▓▓▓▒▓▒▓▒▓▒▒▓██▓▓▒▒▒▒▓▒                         
+                           ▒▒▒▓▓▒▒▒▒▒▒▒▒▓▓▓▓██▓▓█▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒██▓▓▓▒▒▒▒▒▒▒                        
+                          ▒▓▓▓▒▒▒▓▒▓▒▒▒▒▒▒▒▒▓▓▓▓▓█████▓▓▓▓▓▓▓▓▓▒▓▒▓▒▓▒▒▒▒▒▓▓▒                       
+                          ▓▓▓▓▓▓▒▒▒▓▓▒▒▒▒▒▒▒▓▒▒▓▒▒▒▒▒▒▓▒▓▒▒░▒▒▓█▒▓▒▓▒▓▒▒▓▓█▓▒                       
+                          ▓▓▓▓▓▓▓▓▓▒▒▓▓▓▓▓▓▓▓▒▒▓▓▓▒▓▓▓▓▒▒▒▓▓▓▒▒▓▓▒▓▓▒▒▓▓▓▓▓▒▒                       
+                          ▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▒▓▓▓▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▒▒▒                       
+                          ▒▓▒▓▓▓▓▓▓▓▓▓▓██████████▓██▓█▓█▓▓▓▓▓█▓▓▓▓▓▓▓▓▓▓▓▒▒▒                        
+                           ▒▒▒▓▓▓▓▓▓▓▓▓███████████████████████████▓▓▓▓▓▓▒▒▒                         
+                            ▒▓▓▓▓▓▓▓▓▓▓███████████▒▒▒▒▒▒▒▓▓▓█▓▓▓▒▒▒▓▒▓▓▒▒▒                          
+                             ▒▒▓▓▓▓▓▓▓▓████▒▒▓▒▒▓▓█▓▒▓▓▓▓▓█▓▓▓▓▓▓▒▓▓▒▒▓▒▒                           
+                               ▓▓▓▓▓▓▓▓███▒▓▓▓▓▓▒▒▓▓▓▒▒▒▒▓▒▒▒▒▒▒▒▒▒▓▓▒▒▒                            
+                                ▓▓▓▓▓▓▓▓▓▒▓▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▒▒▒▒                             
+                                ▓▓▓▓▓▓▓▓▓█▒▒▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▓▓▒▒                              
+                                ▓▓▓▓▓█▓█████▒▓▒▓▓▓▓▓▒▓▒▓▓▓▓▓▒▓▒▒▓▓▓▒▓▓                              
+                                ▓▓▓▓███▓▓███████▓▒▒▓▓▓▓▓▓▒▒▓▓▓▓▓▓▓▓▓▓▓                              
+                                ▓█▓▓██████████████████████████████▓▓▓▓                              
+                                ▓███▓█████████████████████████████▓▓▓▓                              
+                                 ███████████████████████████████████▓▓                              
+                                  █████████████████████████████████▓▓                               
+                                   ████████████████████████████████▓                                
+                                     ████████████████████████████▓                                  
+                                         ████████████████████▓
+    
+    🔐 ADVANCED PASSWORD STRENGTH TESTER 🔐
+    """
+    print(banner)
 
-# PyBuilder
-.pybuilder/
-target/
+def main():
+    tester = PasswordTester()
+    print_banner()
+    
+    print("🚀 WELCOME TO ADVANCED PASSWORD TESTER!")
+    print("=" * 55)
+    
+    while True:
+        password = input("\n🔐 Enter password to test (or 'q' to quit): ")
+        
+        if password.lower() == 'q':
+            print("👋 Goodbye!")
+            break
+            
+        if not password:
+            print("⚠️ Please enter a password!")
+            continue
+            
+        # Generate report
+        score = tester.generate_report(password)
+        
+        # Recommendations
+        print(f"\n💡 RECOMMENDATIONS:")
+        if score >= 80:
+            print("   🎉 Excellent! This password is very secure.")
+        elif score >= 60:
+            print("   👍 Good, but could be improved.")
+        elif score >= 40:
+            print("   ⚠️ Medium strength - consider strengthening.")
+        else:
+            print("   🚨 Weak - change this password immediately!")
+            
+        # Offer to generate strong password
+        if score < 60:
+            generate = input("\nGenerate a strong password? (y/n): ")
+            if generate.lower() == 'y':
+                strong_pass = tester.generate_strong_password()
+                print(f"💡 Suggested strong password: {strong_pass}")
+                print("   (Copy this to a password manager)")
+            
+        print("=" * 55)
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
-
-# pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#uv.lock
-
-# poetry
-#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-#poetry.lock
-#poetry.toml
-
-# pdm
-#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
-#   pdm recommends including project-wide configuration in pdm.toml, but excluding .pdm-python.
-#   https://pdm-project.org/en/latest/usage/project/#working-with-version-control
-#pdm.lock
-#pdm.toml
-.pdm-python
-.pdm-build/
-
-# pixi
-#   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
-#pixi.lock
-#   Pixi creates a virtual environment in the .pixi directory, just like venv module creates one
-#   in the .venv directory. It is recommended not to include this directory in version control.
-.pixi
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
-
-# Celery stuff
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath parsed files
-*.sage.py
-
-# Environments
-.env
-.envrc
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Spyder project settings
-.spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
-
-# Abstra
-# Abstra is an AI-powered process automation framework.
-# Ignore directories containing user credentials, local state, and settings.
-# Learn more at https://abstra.io/docs
-.abstra/
-
-# Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
-#  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
-#  you could uncomment the following to ignore the entire vscode folder
-# .vscode/
-
-# Ruff stuff:
-.ruff_cache/
-
-# PyPI configuration file
-.pypirc
-
-# Cursor
-#  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
-#  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
-#  refer to https://docs.cursor.com/context/ignore-files
-.cursorignore
-.cursorindexingignore
-
-# Marimo
-marimo/_static/
-marimo/_lsp/
-__marimo__/
+if __name__ == "__main__":
+    main()
