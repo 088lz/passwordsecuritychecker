@@ -15,7 +15,7 @@ from datetime import datetime
 import json
 import warnings
 warnings.filterwarnings('ignore')
-
+from typing import Dict, List, Tuple, Optional
 # Flask'i conditional yap
 try:
     from flask import Flask, request, jsonify, render_template
