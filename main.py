@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Advanced Password Security Analyzer Pro
-A comprehensive enterprise-grade password security assessment tool
-with AI-powered analysis and real-time threat intelligence
+Enterprise password security assessment tool
 """
 
 import re
@@ -13,16 +12,42 @@ import sqlite3
 import secrets
 import string
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
 import json
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from flask import Flask, request, jsonify, render_template
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import warnings
 warnings.filterwarnings('ignore')
+
+# Flask'i conditional yap
+try:
+    from flask import Flask, request, jsonify, render_template
+    FLASK_AVAILABLE = True
+except ImportError:
+    FLASK_AVAILABLE = False
+    print("⚠️  Flask not available - Web interface disabled")
+
+# Flask-Limiter olmadan devam et
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    LIMITER_AVAILABLE = True
+except ImportError:
+    LIMITER_AVAILABLE = False
+    print("⚠️  Flask-Limiter not available - Rate limiting disabled")
+
+# Diğer optional import'lar
+try:
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    PLOTTING_AVAILABLE = True
+except ImportError:
+    PLOTTING_AVAILABLE = False
+    print("⚠️  Matplotlib/Seaborn not available - Charts disabled")
+
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    print("⚠️  NumPy not available - Some features disabled")
 
 class AdvancedPasswordAnalyzer:
     """
